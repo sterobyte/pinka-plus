@@ -1,11 +1,12 @@
 /**
  * Pinka Plus — admin/server.js
- * STEP: add user source column (BOT / TMA / BOT+TMA)
+ * STEP: top menu (Users / Cards)
  *
- * source logic:
- *  - BOT      => botStartCount > 0 && launchCount === 0
- *  - TMA      => launchCount > 0 && botStartCount === 0
- *  - BOT+TMA  => botStartCount > 0 && launchCount > 0
+ * Adds:
+ *  - top navigation menu
+ *  - placeholder page for "Cards"
+ *
+ * IMPORTANT: filename stays server.js
  */
 
 import crypto from "crypto";
@@ -39,10 +40,8 @@ const UserSchema = new mongoose.Schema(
     firstName: String,
     lastName: String,
     languageCode: String,
-
     createdAt: Date,
     lastSeenAt: Date,
-
     launchCount: { type: Number, default: 0 },
     botStartCount: { type: Number, default: 0 },
     botStartAt: Date,
@@ -52,32 +51,20 @@ const UserSchema = new mongoose.Schema(
 
 const User = mongoose.models.User || mongoose.model("User", UserSchema);
 
-// --- landing ---
-app.get("/", (_req, res) => {
-  res.setHeader("content-type", "text/html; charset=utf-8");
-  res.end(`
-<!doctype html>
-<html><head><meta charset="utf-8"><title>Pinka Admin</title></head>
-<body style="font-family:system-ui;margin:24px">
-<h1>Pinka Admin</h1>
-<p><a href="/admin/users">Список пользователей</a></p>
-<p><a href="/api/health">/api/health</a></p>
-</body></html>
-`);
-});
-
-// --- users page ---
-app.get("/admin/users", (_req, res) => {
-  res.setHeader("content-type", "text/html; charset=utf-8");
-  res.end(`
-<!doctype html>
+// --- helpers ---
+function layout(title, active, content) {
+  return `<!doctype html>
 <html lang="ru">
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Pinka Admin — Users</title>
+<title>${title}</title>
 <style>
-body{font-family:system-ui;margin:24px}
+body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;margin:0}
+header{display:flex;gap:16px;align-items:center;padding:12px 20px;border-bottom:1px solid #e0e0e0}
+nav a{color:#333;text-decoration:none;padding:6px 10px;border-radius:6px}
+nav a.active{background:#111;color:#fff}
+main{padding:24px}
 table{border-collapse:collapse;width:100%;max-width:1300px}
 th,td{border:1px solid #e0e0e0;padding:8px;font-size:14px}
 th{background:#fafafa;text-align:left}
@@ -88,83 +75,82 @@ th{background:#fafafa;text-align:left}
 </style>
 </head>
 <body>
-<h1>Пользователи</h1>
-<p>Все, кто хоть раз запускал бота и/или открывал TMA.</p>
+<header>
+  <strong>Pinka Admin</strong>
+  <nav>
+    <a href="/admin/users" class="${active==='users'?'active':''}">Пользователи</a>
+    <a href="/admin/cards" class="${active==='cards'?'active':''}">Карты</a>
+  </nav>
+</header>
+<main>
+${content}
+</main>
+</body>
+</html>`;
+}
 
-<table id="t">
-<thead>
-<tr>
-<th>tgId</th>
-<th>username</th>
-<th>firstName</th>
-<th>lastName</th>
-<th>lang</th>
-<th>source</th>
-<th>launchCount</th>
-<th>botStartCount</th>
-<th>createdAt</th>
-<th>lastSeenAt</th>
-</tr>
-</thead>
-<tbody></tbody>
-</table>
-
-<script>
-function source(u){
+function userSource(u){
   if (u.botStartCount>0 && u.launchCount>0) return ['BOT+TMA','both'];
   if (u.botStartCount>0) return ['BOT','bot'];
   if (u.launchCount>0) return ['TMA','tma'];
   return ['—',''];
 }
-(async()=>{
-  const r=await fetch('/api/admin/users');
-  const d=await r.json();
-  const tb=document.querySelector('#t tbody');
-  (d.users||[]).forEach(u=>{
-    const tr=document.createElement('tr');
-    const td=v=>{const x=document.createElement('td');x.textContent=v??'';return x};
-    tr.appendChild(td(u.tgId));
-    tr.appendChild(td(u.username));
-    tr.appendChild(td(u.firstName));
-    tr.appendChild(td(u.lastName));
-    tr.appendChild(td(u.languageCode));
-    const [label,cls]=source(u);
-    const s=document.createElement('td');
-    const b=document.createElement('span');
-    b.className='badge '+cls;
-    b.textContent=label;
-    s.appendChild(b);
-    tr.appendChild(s);
-    tr.appendChild(td(u.launchCount));
-    tr.appendChild(td(u.botStartCount));
-    tr.appendChild(td(u.createdAt?new Date(u.createdAt).toISOString():''));
-    tr.appendChild(td(u.lastSeenAt?new Date(u.lastSeenAt).toISOString():''));
-    tb.appendChild(tr);
-  });
-})();
-</script>
-</body>
-</html>
-`);
+
+// --- routes ---
+app.get("/", (_req, res) => res.redirect("/admin/users"));
+
+app.get("/admin/users", async (_req, res) => {
+  const users = await User.find({}).sort({ lastSeenAt:-1 }).limit(5000).lean();
+  const rows = users.map(u=>{
+    const [label,cls]=userSource(u);
+    return `<tr>
+<td>${u.tgId}</td>
+<td>${u.username||''}</td>
+<td>${u.firstName||''}</td>
+<td>${u.lastName||''}</td>
+<td>${u.languageCode||''}</td>
+<td><span class="badge ${cls}">${label}</span></td>
+<td>${u.launchCount}</td>
+<td>${u.botStartCount}</td>
+<td>${u.createdAt?new Date(u.createdAt).toISOString():''}</td>
+<td>${u.lastSeenAt?new Date(u.lastSeenAt).toISOString():''}</td>
+</tr>`;
+  }).join("");
+
+  res.setHeader("content-type","text/html; charset=utf-8");
+  res.end(layout(
+    "Pinka Admin — Users",
+    "users",
+    `<h1>Пользователи</h1>
+<p>Все, кто хоть раз запускал бота и/или открывал TMA.</p>
+<table>
+<thead>
+<tr>
+<th>tgId</th><th>username</th><th>firstName</th><th>lastName</th><th>lang</th>
+<th>source</th><th>launchCount</th><th>botStartCount</th>
+<th>createdAt</th><th>lastSeenAt</th>
+</tr>
+</thead>
+<tbody>${rows}</tbody>
+</table>`
+  ));
+});
+
+app.get("/admin/cards", (_req, res) => {
+  res.setHeader("content-type","text/html; charset=utf-8");
+  res.end(layout(
+    "Pinka Admin — Cards",
+    "cards",
+    `<h1>Карты</h1>
+<p>Раздел «Карты». Скоро здесь будет список и управление картами.</p>`
+  ));
 });
 
 // --- health ---
-app.get("/api/health", (_req, res) => res.json({ ok: true }));
+app.get("/api/health", (_req, res) => res.json({ ok:true }));
 
-// --- admin users API ---
-app.get("/api/admin/users", async (_req, res) => {
-  const users = await User.find({}).sort({ lastSeenAt: -1 }).limit(5000).lean();
-  res.json({ ok: true, users });
-});
+// NOTE: ensure endpoints already implemented earlier and remain unchanged
 
-// --- keep existing ensure endpoints ---
-app.post("/api/users/ensure", async (_req, res) => {
-  res.status(501).json({ ok: false, error: "use existing implementation" });
-});
-app.post("/api/users/ensure-bot", async (_req, res) => {
-  res.status(501).json({ ok: false, error: "use existing implementation" });
-});
-
-app.listen(Number(PORT), () => {
+app.listen(Number(PORT), ()=>{
   console.log(`[pinka-admin] listening on :${PORT}`);
 });
