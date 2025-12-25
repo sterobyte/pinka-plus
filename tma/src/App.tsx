@@ -6,28 +6,48 @@ declare global {
   }
 }
 
-/**
- * Fullscreen splash (stable):
- * - expand() to request full height
- * - NO safe-area padding on container (it was shifting the image)
- * - viewport height uses Telegram vars + dvh fallback
- */
 export default function App() {
   useEffect(() => {
-    const wa = window.Telegram?.WebApp;
-    if (!wa) return;
+    const tg = window.Telegram?.WebApp;
+    if (!tg) return;
 
+    tg.ready();
+
+    // auto-fullscreen как у BLUM
     try {
-      wa.ready?.();
-      wa.expand?.();
-    } catch {
-      // ignore
-    }
+      tg.requestFullscreen?.();
+    } catch {}
+
+    // fallback
+    try {
+      tg.expand?.();
+    } catch {}
   }, []);
 
   return (
-    <div className="pp-viewport">
-      <img className="pp-bg" src="/welcome.png" alt="Pinka Plus" />
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,               // 🔑 ключ
+        width: "100%",
+        height: "100%",
+        margin: 0,
+        padding: 0,
+        background: "#000",
+        overflow: "hidden",
+      }}
+    >
+      <img
+        src="/welcome.png"
+        alt="welcome"
+        style={{
+          position: "absolute",
+          inset: 0,
+          width: "100%",
+          height: "100%",
+          objectFit: "cover",
+        }}
+      />
     </div>
   );
 }
