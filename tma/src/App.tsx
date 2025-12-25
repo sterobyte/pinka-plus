@@ -7,10 +7,10 @@ declare global {
 }
 
 /**
- * Triple-A fullscreen для Telegram Mini App:
- * - WebApp.ready() + WebApp.expand()
- * - корректная высота через CSS var(--tg-viewport-height) (убирает белые полосы/сдвиги)
- * - object-fit: cover для pixel-perfect PNG
+ * Fullscreen splash (stable):
+ * - expand() to request full height
+ * - NO safe-area padding on container (it was shifting the image)
+ * - viewport height uses Telegram vars + dvh fallback
  */
 export default function App() {
   useEffect(() => {
@@ -20,14 +20,6 @@ export default function App() {
     try {
       wa.ready?.();
       wa.expand?.();
-
-      const onViewportChanged = () => {
-        // Telegram сам обновляет CSS vars --tg-viewport-height/width на :root.
-        // Слушатель держим, чтобы клиент не "засыпал" с неверным вьюпортом.
-      };
-
-      wa.onEvent?.("viewportChanged", onViewportChanged);
-      return () => wa.offEvent?.("viewportChanged", onViewportChanged);
     } catch {
       // ignore
     }
