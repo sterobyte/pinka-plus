@@ -21,7 +21,6 @@ services:
   - type: web
     name: pinka-tma
     env: static
-    plan: starter
     rootDir: tma
     buildCommand: npm install && npm run build
     staticPublishPath: dist
