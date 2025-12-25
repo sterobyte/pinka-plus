@@ -1,10 +1,9 @@
 /**
- * Pinka Plus — bot/index.js (STEP 1)
- * Goal: при /start фиксировать пользователя в админке.
+ * Pinka Plus — bot/index.js
+ * STEP: фиксируем пользователей, которые жмут /start
  *
- * Делает POST {tgId, username, firstName, lastName, languageCode}
- * на ADMIN_API_URL + /api/users/ensure-bot
- * с заголовком x-bot-token = BOT_TOKEN
+ * POST -> ADMIN_API_URL/api/users/ensure-bot
+ * headers: x-bot-token = BOT_TOKEN
  */
 
 const { Telegraf, Markup } = require("telegraf");
@@ -17,49 +16,44 @@ if (!TMA_URL) throw new Error("TMA_URL is required");
 
 const bot = new Telegraf(BOT_TOKEN);
 
-async function postJson(url, body, headers = {}) {
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "content-type": "application/json", ...headers },
-    body: JSON.stringify(body),
-  });
-  const text = await res.text();
-  let json;
-  try { json = JSON.parse(text); } catch { json = { raw: text }; }
-  if (!res.ok) {
-    const err = new Error(`HTTP ${res.status} ${res.statusText}`);
-    err.response = json;
-    throw err;
-  }
-  return json;
-}
+async function ensureBotUser(ctx) {
+  const u = ctx.from || {};
+  const url = `${ADMIN_API_URL.replace(/\/+$/, "")}/api/users/ensure-bot`;
 
-bot.start(async (ctx) => {
-  // 1) фиксируем пользователя в админке
   try {
-    const u = ctx.from || {};
-    await postJson(
-      `${ADMIN_API_URL.replace(/\/+$/, "")}/api/users/ensure-bot`,
-      {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-bot-token": BOT_TOKEN,
+      },
+      body: JSON.stringify({
         tgId: u.id,
         username: u.username || "",
         firstName: u.first_name || "",
         lastName: u.last_name || "",
         languageCode: u.language_code || "",
-      },
-      { "x-bot-token": BOT_TOKEN }
-    );
+      }),
+    });
+
+    const text = await res.text();
+    if (!res.ok) {
+      // eslint-disable-next-line no-console
+      console.error("[bot] ensure-bot failed:", res.status, text);
+      return;
+    }
   } catch (e) {
     // eslint-disable-next-line no-console
-    console.error("[bot] ensure-bot failed:", e?.message || e, e?.response || "");
+    console.error("[bot] ensure-bot error:", e?.message || e);
   }
+}
 
-  // 2) кнопка WebApp как и раньше
+bot.start(async (ctx) => {
+  await ensureBotUser(ctx);
+
   return ctx.reply(
     "Открывай Pinka Plus:",
-    Markup.inlineKeyboard([
-      Markup.button.webApp("Open", TMA_URL),
-    ])
+    Markup.inlineKeyboard([Markup.button.webApp("Open", TMA_URL)])
   );
 });
 
