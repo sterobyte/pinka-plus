@@ -1,18 +1,18 @@
 /**
  * Pinka Plus — bot/index.js
- * STEP: фиксируем пользователей, которые жмут /start
+ * STEP: убрать inline WebApp кнопку полностью.
  *
- * POST -> ADMIN_API_URL/api/users/ensure-bot
- * headers: x-bot-token = BOT_TOKEN
+ * Оставляем:
+ *  - фиксацию пользователя (POST /api/users/ensure-bot)
+ *  - обычный текстовый ответ на /start (без клавиатур)
  */
 
-const { Telegraf, Markup } = require("telegraf");
+const { Telegraf } = require("telegraf");
 
-const { BOT_TOKEN, ADMIN_API_URL, TMA_URL } = process.env;
+const { BOT_TOKEN, ADMIN_API_URL } = process.env;
 
 if (!BOT_TOKEN) throw new Error("BOT_TOKEN is required");
 if (!ADMIN_API_URL) throw new Error("ADMIN_API_URL is required");
-if (!TMA_URL) throw new Error("TMA_URL is required");
 
 const bot = new Telegraf(BOT_TOKEN);
 
@@ -36,11 +36,10 @@ async function ensureBotUser(ctx) {
       }),
     });
 
-    const text = await res.text();
     if (!res.ok) {
+      const text = await res.text();
       // eslint-disable-next-line no-console
       console.error("[bot] ensure-bot failed:", res.status, text);
-      return;
     }
   } catch (e) {
     // eslint-disable-next-line no-console
@@ -50,11 +49,7 @@ async function ensureBotUser(ctx) {
 
 bot.start(async (ctx) => {
   await ensureBotUser(ctx);
-
-  return ctx.reply(
-    "Открывай Pinka Plus:",
-    Markup.inlineKeyboard([Markup.button.webApp("Open", TMA_URL)])
-  );
+  return ctx.reply("Открой мини‑приложение через кнопку «Open» в профиле бота / меню (не через чат).");
 });
 
 bot.launch();
