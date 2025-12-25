@@ -1,20 +1,19 @@
 /**
- * Pinka Plus — admin/server.js (FIX: tgId conflict)
+ * Pinka Plus — admin/server.js (FIX: conflicts for username/firstName/etc)
  *
- * Причина ошибки:
- *  - tgId попадал одновременно в $set/$setOnInsert => Mongo конфликт "Updating the path 'tgId'..."
+ * Mongo конфликт возникает, когда один и тот же путь обновляется
+ * в разных операторах ($setOnInsert и $set).
  *
  * Фикс:
- *  - tgId НЕ включаем в $set (и вообще не обновляем), только:
- *    - используем в фильтре { tgId }
- *    - кладём в $setOnInsert при создании
+ *  - в $setOnInsert кладём ТОЛЬКО неизменяемые поля вставки: tgId, createdAt
+ *  - профиль (username/firstName/lastName/languageCode) кладём ТОЛЬКО в $set
  *
  * Включено:
  *  - GET /
  *  - GET /api/health
  *  - POST /api/users/ensure (Telegram WebApp initData validation; launchCount via $inc)
  *  - POST /api/users/ensure-bot (bot /start tracking; botStartCount via $inc)
- *  - GET /api/admin/users + /admin/users (простая страница списка)
+ *  - GET /api/admin/users + /admin/users
  *
  * IMPORTANT: filename stays server.js
  */
@@ -146,9 +145,6 @@ function safeJsonParse(s) {
 /**
  * POST /api/users/ensure
  * Body: { initData: string }
- * - валидируем initData
- * - upsert user (tgId)
- * - launchCount увеличиваем ТОЛЬКО через $inc
  */
 app.post("/api/users/ensure", async (req, res) => {
   try {
@@ -176,7 +172,6 @@ app.post("/api/users/ensure", async (req, res) => {
       {
         $setOnInsert: {
           tgId,
-          ...profile,
           createdAt: now,
         },
         $set: {
@@ -220,10 +215,8 @@ app.post("/api/users/ensure-bot", async (req, res) => {
       {
         $setOnInsert: {
           tgId,
-          ...profile,
           createdAt: now,
           botStartCount: 0,
-          botStartAt: now,
         },
         $set: {
           ...profile,
