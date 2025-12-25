@@ -1,32 +1,28 @@
 /**
- * Pinka Plus — admin/server.js (STEP 1)
- * Goal: фиксировать пользователей, которые запускали бота (/start).
+ * Pinka Plus — admin/server.js (ESM fix)
+ * package.json has "type":"module" => use import, not require.
  *
- * Добавлено:
- *   POST /api/users/ensure-bot
- *   - вызывается ботом при /start
- *   - авторизация: заголовок x-bot-token должен совпадать с env BOT_TOKEN
- *   - upsert пользователя по tgId
- *   - инкремент botStartCount и обновление botStartAt/lastSeenAt
+ * Includes:
+ *  - GET /api/health
+ *  - POST /api/users/ensure-bot (фикс пользователей, которые запускали бота)
  *
- * ВАЖНО: имена файлов не меняем. server.js остаётся server.js.
+ * IMPORTANT: filename stays server.js
  */
 
-const express = require("express");
-const mongoose = require("mongoose");
+import express from "express";
+import mongoose from "mongoose";
 
 const app = express();
 app.use(express.json({ limit: "1mb" }));
 
-// --- ENV ---
 const { MONGO_URI, BOT_TOKEN, PORT = 10000 } = process.env;
 
-// --- Mongo ---
 if (!MONGO_URI) throw new Error("MONGO_URI is required");
-mongoose.connect(MONGO_URI);
 
-// --- User model ---
-// Если у тебя модель уже объявлена иначе — перенеси новые поля botStartCount/botStartAt туда.
+await mongoose.connect(MONGO_URI);
+
+// If you already have a User model/schema in your project,
+// merge the NEW fields (botStartCount, botStartAt) into it.
 const UserSchema = new mongoose.Schema(
   {
     tgId: { type: Number, required: true, unique: true, index: true },
@@ -38,10 +34,10 @@ const UserSchema = new mongoose.Schema(
     createdAt: { type: Date, default: Date.now },
     lastSeenAt: { type: Date, default: Date.now },
 
-    // уже используемое поле (WebApp launches)
+    // WebApp launches
     launchCount: { type: Number, default: 0 },
 
-    // NEW: bot starts
+    // Bot starts
     botStartCount: { type: Number, default: 0 },
     botStartAt: { type: Date, default: null },
   },
@@ -50,27 +46,19 @@ const UserSchema = new mongoose.Schema(
 
 const User = mongoose.models.User || mongoose.model("User", UserSchema);
 
-// --- health ---
 app.get("/api/health", (_req, res) => res.json({ ok: true }));
 
 /**
- * Уже существующий эндпойнт (WebApp initData).
- * Оставь как есть в твоём проекте — ниже просто заглушка.
- * ВАЖНО: фикс Mongo conflicting update operators:
- *  - launchCount НЕ ставим в $setOnInsert
- *  - увеличиваем только через $inc: { launchCount: 1 }
+ * Keep your existing /api/users/ensure (TMA initData validation) as-is.
+ * This file does not replace it, to avoid breaking your working MVP chain.
  */
 app.post("/api/users/ensure", async (_req, res) => {
   return res.status(501).json({
     ok: false,
-    error: "This patch file is a STEP-1 template. Keep your existing /api/users/ensure implementation.",
+    error: "Keep your existing /api/users/ensure implementation (TMA initData validation).",
   });
 });
 
-/**
- * NEW: bot calls this on /start to фиксировать пользователей кто запускал бота
- * Auth: header x-bot-token must equal BOT_TOKEN
- */
 app.post("/api/users/ensure-bot", async (req, res) => {
   try {
     if (!BOT_TOKEN) return res.status(500).json({ ok: false, error: "BOT_TOKEN is not set on admin" });
@@ -97,7 +85,6 @@ app.post("/api/users/ensure-bot", async (req, res) => {
           tgId,
           ...payload,
           createdAt: now,
-          // launchCount НЕ трогаем тут
           botStartCount: 0,
           botStartAt: now,
         },
@@ -106,9 +93,7 @@ app.post("/api/users/ensure-bot", async (req, res) => {
           lastSeenAt: now,
           botStartAt: now,
         },
-        $inc: {
-          botStartCount: 1,
-        },
+        $inc: { botStartCount: 1 },
       },
       { new: true, upsert: true }
     );
@@ -120,6 +105,5 @@ app.post("/api/users/ensure-bot", async (req, res) => {
 });
 
 app.listen(Number(PORT), () => {
-  // eslint-disable-next-line no-console
   console.log(`[pinka-admin] listening on :${PORT}`);
 });
