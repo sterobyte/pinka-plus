@@ -1,46 +1,47 @@
-import dotenv from "dotenv";
-import { Telegraf, Markup } from "telegraf";
-import fetch from "node-fetch";
+/**
+ * Pinka Plus bot
+ * /start — только текст, без кнопок
+ */
 
-dotenv.config();
+const { Telegraf } = require("telegraf");
+const fetch = require("node-fetch");
 
-const BOT_TOKEN = process.env.BOT_TOKEN;
-const ADMIN_API_URL = process.env.ADMIN_API_URL || "http://localhost:3000";
-const TMA_URL = process.env.TMA_URL || "";
+const { BOT_TOKEN, ADMIN_API_URL } = process.env;
 
-if (!BOT_TOKEN) {
-  console.error("Missing BOT_TOKEN");
-  process.exit(1);
-}
+if (!BOT_TOKEN) throw new Error("BOT_TOKEN is required");
+if (!ADMIN_API_URL) throw new Error("ADMIN_API_URL is required");
 
 const bot = new Telegraf(BOT_TOKEN);
 
-// Fallback: /start can record user with mockTgId (trusted sync happens from TMA initData)
 async function ensureUserFromStart(ctx) {
-  const u = ctx.from;
-  if (!u?.id) return null;
+  const u = ctx.from || {};
+
   try {
-    const r = await fetch(`${ADMIN_API_URL}/api/users/ensure`, {
+    await fetch(`${ADMIN_API_URL}/api/users/ensure-bot`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ mockTgId: u.id, meta: { source: "bot_start_fallback" } })
+      headers: {
+        "content-type": "application/json",
+        "x-bot-token": BOT_TOKEN,
+      },
+      body: JSON.stringify({
+        tgId: u.id,
+        username: u.username || "",
+        firstName: u.first_name || "",
+        lastName: u.last_name || "",
+        languageCode: u.language_code || "",
+      }),
     });
-    const j = await r.json();
-    return j.ok ? j.user : null;
-  } catch {
-    return null;
+  } catch (err) {
+    console.error("ensure-bot error:", err);
   }
 }
 
 bot.start(async (ctx) => {
   await ensureUserFromStart(ctx);
-  const url = TMA_URL || "https://example.com";
-  const button = Markup.button.webApp("Open Pinka Plus", url);
-  await ctx.reply("Открой мини‑приложение и нажми Sync account.", Markup.inlineKeyboard([[button]]));
+  return ctx.reply(
+    "Открой мини-приложение через профиль бота (кнопка Open) и нажми Sync account."
+  );
 });
 
-bot.command("ping", async (ctx) => ctx.reply("pong"));
-
-bot.launch().then(() => console.log("✅ Bot launched"));
-process.once("SIGINT", () => bot.stop("SIGINT"));
-process.once("SIGTERM", () => bot.stop("SIGTERM"));
+bot.launch();
+console.log("[pinka-bot] started");
