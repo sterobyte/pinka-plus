@@ -1,25 +1,42 @@
-import React from "react";
+import { useEffect } from "react";
+
+declare global {
+  interface Window {
+    Telegram?: any;
+  }
+}
 
 export default function App() {
+  useEffect(() => {
+    const tg = window.Telegram?.WebApp;
+    if (!tg) return;
+
+    tg.ready();
+
+    // Попытка true fullscreen (как BLUM / Tiny Verse)
+    try {
+      if (tg.requestFullscreen) {
+        tg.requestFullscreen();
+      }
+    } catch {}
+
+    // Fallback — максимум без шапки не гарантируем, но растягиваемся
+    try {
+      if (tg.expand) {
+        tg.expand();
+      }
+    } catch {}
+  }, []);
+
   return (
-    <div style={{
-      position: "fixed",
-      inset: 0,
-      width: "100vw",
-      height: "100vh",
-      overflow: "hidden",
-      background: "#0e1116",
-    }}>
-      <img
-        src="/welcome.png"
-        alt="Pinka Plus"
-        style={{
-          width: "100%",
-          height: "100%",
-          objectFit: "cover",
-          display: "block",
-        }}
-      />
+    <div
+      style={{
+        width: "100vw",
+        height: "100vh",
+        background: "#000", // или твой welcome
+      }}
+    >
+      {/* твой welcome / UI */}
     </div>
   );
 }
