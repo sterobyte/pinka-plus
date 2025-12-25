@@ -1,1 +1,28 @@
-# render blueprint
+services:
+  - type: web
+    name: pinka-admin
+    env: node
+    plan: starter
+    rootDir: admin
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeploy: true
+
+  - type: worker
+    name: pinka-bot
+    env: node
+    plan: starter
+    rootDir: bot
+    buildCommand: npm install
+    startCommand: npm start
+    autoDeploy: true
+
+  - type: web
+    name: pinka-tma
+    env: static
+    plan: starter
+    rootDir: tma
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    autoDeploy: true
