@@ -1,38 +1,60 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 
 type EnsureResp = { ok: true; user: any; meta?: any } | { ok: false; error: string };
 
 const ADMIN_API = import.meta.env.VITE_ADMIN_API_URL as string;
 
-function getInitData(): string {
+function getTelegramWebApp(): any {
   try {
-    return window.Telegram?.WebApp?.initData || "";
+    return window.Telegram?.WebApp || null;
   } catch {
-    return "";
+    return null;
   }
+}
+
+function getInitData(): string {
+  const wa = getTelegramWebApp();
+  return wa?.initData || "";
 }
 
 export default function App() {
   const [status, setStatus] = useState("idle");
   const [resp, setResp] = useState<any>(null);
+  const [isTelegram, setIsTelegram] = useState(false);
 
-  const isTelegram = useMemo(() => Boolean(window.Telegram?.WebApp), []);
+  useEffect(() => {
+    // Telegram iOS иногда инжектит объект не мгновенно — подождём чуть-чуть
+    let tries = 0;
+    const t = setInterval(() => {
+      tries += 1;
+      const wa = getTelegramWebApp();
+      if (wa) {
+        setIsTelegram(true);
+        try {
+          wa.ready?.();
+          wa.expand?.();
+        } catch {}
+        clearInterval(t);
+      }
+      if (tries >= 20) clearInterval(t); // ~2 секунды
+    }, 100);
+
+    return () => clearInterval(t);
+  }, []);
 
   async function sync() {
     setStatus("loading");
     setResp(null);
 
     const initData = getInitData();
-    const payload = initData
-      ? { initData, meta: { source: "tma" } }
-      : { mockTgId: 123456789, meta: { source: "tma_dev_mock" } };
 
     try {
       const r = await fetch(`${ADMIN_API}/api/users/ensure`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ initData, meta: { source: "tma" } }),
       });
+
       const j = (await r.json()) as EnsureResp;
       setResp(j);
       setStatus(j.ok ? "ok" : "error");
@@ -46,7 +68,7 @@ export default function App() {
     <div style={{ fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif", padding: 18, maxWidth: 760 }}>
       <h1 style={{ margin: 0 }}>Pinka Plus</h1>
       <p style={{ marginTop: 8, opacity: 0.8 }}>
-        MVP: пустое мини‑приложение, которое сохраняет учетку юзера в MongoDB.
+        MVP: пустое мини-приложение, которое сохраняет учетку юзера в MongoDB.
       </p>
 
       <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 14, flexWrap: "wrap" }}>
