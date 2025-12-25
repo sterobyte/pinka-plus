@@ -6,48 +6,36 @@ declare global {
   }
 }
 
+/**
+ * Triple-A fullscreen для Telegram Mini App:
+ * - WebApp.ready() + WebApp.expand()
+ * - корректная высота через CSS var(--tg-viewport-height) (убирает белые полосы/сдвиги)
+ * - object-fit: cover для pixel-perfect PNG
+ */
 export default function App() {
   useEffect(() => {
-    const tg = window.Telegram?.WebApp;
-    if (!tg) return;
+    const wa = window.Telegram?.WebApp;
+    if (!wa) return;
 
-    tg.ready();
-
-    // auto-fullscreen как у BLUM
     try {
-      tg.requestFullscreen?.();
-    } catch {}
+      wa.ready?.();
+      wa.expand?.();
 
-    // fallback
-    try {
-      tg.expand?.();
-    } catch {}
+      const onViewportChanged = () => {
+        // Telegram сам обновляет CSS vars --tg-viewport-height/width на :root.
+        // Слушатель держим, чтобы клиент не "засыпал" с неверным вьюпортом.
+      };
+
+      wa.onEvent?.("viewportChanged", onViewportChanged);
+      return () => wa.offEvent?.("viewportChanged", onViewportChanged);
+    } catch {
+      // ignore
+    }
   }, []);
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,               // 🔑 ключ
-        width: "100%",
-        height: "100%",
-        margin: 0,
-        padding: 0,
-        background: "#000",
-        overflow: "hidden",
-      }}
-    >
-      <img
-        src="/welcome.png"
-        alt="welcome"
-        style={{
-          position: "absolute",
-          inset: 0,
-          width: "100%",
-          height: "100%",
-          objectFit: "cover",
-        }}
-      />
+    <div className="pp-viewport">
+      <img className="pp-bg" src="/welcome.png" alt="Pinka Plus" />
     </div>
   );
 }
