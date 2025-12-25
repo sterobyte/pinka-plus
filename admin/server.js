@@ -1,10 +1,20 @@
 /**
- * Pinka Plus — admin/server.js (FIX: restore /api/users/ensure + CORS)
+ * Pinka Plus — admin/server.js (FIX: tgId conflict)
  *
- * Fixes TMA "Load failed":
- *  - полноценный /api/users/ensure (Telegram WebApp initData validation)
- *  - CORS для запросов из TMA
- *  - сохраняем /api/users/ensure-bot и /api/admin/users
+ * Причина ошибки:
+ *  - tgId попадал одновременно в $set/$setOnInsert => Mongo конфликт "Updating the path 'tgId'..."
+ *
+ * Фикс:
+ *  - tgId НЕ включаем в $set (и вообще не обновляем), только:
+ *    - используем в фильтре { tgId }
+ *    - кладём в $setOnInsert при создании
+ *
+ * Включено:
+ *  - GET /
+ *  - GET /api/health
+ *  - POST /api/users/ensure (Telegram WebApp initData validation; launchCount via $inc)
+ *  - POST /api/users/ensure-bot (bot /start tracking; botStartCount via $inc)
+ *  - GET /api/admin/users + /admin/users (простая страница списка)
  *
  * IMPORTANT: filename stays server.js
  */
@@ -138,7 +148,7 @@ function safeJsonParse(s) {
  * Body: { initData: string }
  * - валидируем initData
  * - upsert user (tgId)
- * - FIX Mongo operators: launchCount НЕ в $setOnInsert, только $inc
+ * - launchCount увеличиваем ТОЛЬКО через $inc
  */
 app.post("/api/users/ensure", async (req, res) => {
   try {
@@ -152,9 +162,9 @@ app.post("/api/users/ensure", async (req, res) => {
     if (!userObj?.id) return res.status(400).json({ ok: false, error: "user is missing in initData" });
 
     const now = new Date();
+    const tgId = Number(userObj.id);
 
-    const payload = {
-      tgId: Number(userObj.id),
+    const profile = {
       username: String(userObj.username || ""),
       firstName: String(userObj.first_name || ""),
       lastName: String(userObj.last_name || ""),
@@ -162,15 +172,15 @@ app.post("/api/users/ensure", async (req, res) => {
     };
 
     const user = await User.findOneAndUpdate(
-      { tgId: payload.tgId },
+      { tgId },
       {
         $setOnInsert: {
-          ...payload,
+          tgId,
+          ...profile,
           createdAt: now,
-          // launchCount НЕ ставим тут!
         },
         $set: {
-          ...payload,
+          ...profile,
           lastSeenAt: now,
         },
         $inc: { launchCount: 1 },
@@ -198,7 +208,7 @@ app.post("/api/users/ensure-bot", async (req, res) => {
 
     const now = new Date();
 
-    const payload = {
+    const profile = {
       username: String(req.body?.username || ""),
       firstName: String(req.body?.firstName || ""),
       lastName: String(req.body?.lastName || ""),
@@ -210,13 +220,13 @@ app.post("/api/users/ensure-bot", async (req, res) => {
       {
         $setOnInsert: {
           tgId,
-          ...payload,
+          ...profile,
           createdAt: now,
           botStartCount: 0,
           botStartAt: now,
         },
         $set: {
-          ...payload,
+          ...profile,
           lastSeenAt: now,
           botStartAt: now,
         },
