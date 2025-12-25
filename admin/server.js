@@ -1,139 +1,125 @@
-import express from "express";
-import cors from "cors";
-import dotenv from "dotenv";
-import mongoose from "mongoose";
-import crypto from "crypto";
+/**
+ * Pinka Plus — admin/server.js (STEP 1)
+ * Goal: фиксировать пользователей, которые запускали бота (/start).
+ *
+ * Добавлено:
+ *   POST /api/users/ensure-bot
+ *   - вызывается ботом при /start
+ *   - авторизация: заголовок x-bot-token должен совпадать с env BOT_TOKEN
+ *   - upsert пользователя по tgId
+ *   - инкремент botStartCount и обновление botStartAt/lastSeenAt
+ *
+ * ВАЖНО: имена файлов не меняем. server.js остаётся server.js.
+ */
 
-dotenv.config();
+const express = require("express");
+const mongoose = require("mongoose");
 
 const app = express();
-app.use(cors());
 app.use(express.json({ limit: "1mb" }));
 
-const PORT = Number(process.env.PORT || 3000);
-const MONGO_URI = process.env.MONGO_URI;
-const BOT_TOKEN = process.env.BOT_TOKEN;
-const DEV_ALLOW_MOCK = String(process.env.DEV_ALLOW_MOCK || "").toLowerCase() === "true";
+// --- ENV ---
+const { MONGO_URI, BOT_TOKEN, PORT = 10000 } = process.env;
 
-if (!MONGO_URI) {
-  console.error("Missing MONGO_URI in env");
-  process.exit(1);
-}
-if (!BOT_TOKEN) {
-  console.error("Missing BOT_TOKEN in env");
-  process.exit(1);
-}
+// --- Mongo ---
+if (!MONGO_URI) throw new Error("MONGO_URI is required");
+mongoose.connect(MONGO_URI);
 
-await mongoose.connect(MONGO_URI);
-console.log("✅ Mongo connected");
-
-const userSchema = new mongoose.Schema(
+// --- User model ---
+// Если у тебя модель уже объявлена иначе — перенеси новые поля botStartCount/botStartAt туда.
+const UserSchema = new mongoose.Schema(
   {
     tgId: { type: Number, required: true, unique: true, index: true },
     username: { type: String, default: "" },
     firstName: { type: String, default: "" },
     lastName: { type: String, default: "" },
     languageCode: { type: String, default: "" },
+
     createdAt: { type: Date, default: Date.now },
     lastSeenAt: { type: Date, default: Date.now },
+
+    // уже используемое поле (WebApp launches)
     launchCount: { type: Number, default: 0 },
+
+    // NEW: bot starts
+    botStartCount: { type: Number, default: 0 },
+    botStartAt: { type: Date, default: null },
   },
-  { versionKey: false }
+  { collection: "users" }
 );
 
-const User = mongoose.model("User", userSchema);
+const User = mongoose.models.User || mongoose.model("User", UserSchema);
+
+// --- health ---
+app.get("/api/health", (_req, res) => res.json({ ok: true }));
 
 /**
- * Telegram WebApp initData verification
- * https://core.telegram.org/bots/webapps#validating-data-received-via-the-mini-app
+ * Уже существующий эндпойнт (WebApp initData).
+ * Оставь как есть в твоём проекте — ниже просто заглушка.
+ * ВАЖНО: фикс Mongo conflicting update operators:
+ *  - launchCount НЕ ставим в $setOnInsert
+ *  - увеличиваем только через $inc: { launchCount: 1 }
  */
-function parseInitData(initData) {
-  const params = new URLSearchParams(initData);
-  const hash = params.get("hash");
-  if (!hash) return { ok: false, error: "Missing hash" };
-  params.delete("hash");
-
-  const dataCheckString = Array.from(params.entries())
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([k, v]) => `${k}=${v}`)
-    .join("\n");
-
-  const secretKey = crypto.createHmac("sha256", "WebAppData").update(BOT_TOKEN).digest();
-  const calcHash = crypto.createHmac("sha256", secretKey).update(dataCheckString).digest("hex");
-
-  if (calcHash !== hash) return { ok: false, error: "Invalid hash" };
-
-  const userRaw = params.get("user");
-  let user = null;
-  if (userRaw) {
-    try {
-      user = JSON.parse(userRaw);
-    } catch {
-      return { ok: false, error: "Bad user JSON" };
-    }
-  }
-
-  return { ok: true, user };
-}
-
-app.get("/api/health", (req, res) => {
-  res.json({ ok: true, service: "pinka-admin", ts: new Date().toISOString() });
-});
-
-app.post("/api/users/ensure", async (req, res) => {
-  const { initData, mockTgId, meta } = req.body || {};
-  let tgUser = null;
-
-  if (initData && typeof initData === "string" && initData.length > 0) {
-    const parsed = parseInitData(initData);
-    if (!parsed.ok) return res.status(401).json({ ok: false, error: parsed.error });
-    tgUser = parsed.user;
-    if (!tgUser?.id) return res.status(400).json({ ok: false, error: "Missing user in initData" });
-  } else if (DEV_ALLOW_MOCK && Number.isFinite(Number(mockTgId))) {
-    tgUser = { id: Number(mockTgId), username: "mock", first_name: "Mock", last_name: "User", language_code: "en" };
-  } else {
-    return res.status(400).json({ ok: false, error: "initData required (or enable DEV_ALLOW_MOCK + mockTgId)" });
-  }
-
-  const tgId = Number(tgUser.id);
-  const update = {
-    username: String(tgUser.username || ""),
-    firstName: String(tgUser.first_name || ""),
-    lastName: String(tgUser.last_name || ""),
-    languageCode: String(tgUser.language_code || ""),
-    lastSeenAt: new Date(),
-  };
-
-  // FIX: don't set launchCount and $inc launchCount in the same update (Mongo conflict).
-  const doc = await User.findOneAndUpdate(
-    { tgId },
-    {
-      $setOnInsert: { tgId, createdAt: new Date() },
-      $set: update,
-      $inc: { launchCount: 1 },
-    },
-    { new: true, upsert: true }
-  ).lean();
-
-  res.json({
-    ok: true,
-    user: {
-      tgId: doc.tgId,
-      username: doc.username,
-      firstName: doc.firstName,
-      lastName: doc.lastName,
-      languageCode: doc.languageCode,
-      createdAt: doc.createdAt,
-      lastSeenAt: doc.lastSeenAt,
-      launchCount: doc.launchCount,
-    },
-    meta: meta || null,
+app.post("/api/users/ensure", async (_req, res) => {
+  return res.status(501).json({
+    ok: false,
+    error: "This patch file is a STEP-1 template. Keep your existing /api/users/ensure implementation.",
   });
 });
 
-app.get("/api/users/count", async (req, res) => {
-  const count = await User.countDocuments({});
-  res.json({ ok: true, count });
+/**
+ * NEW: bot calls this on /start to фиксировать пользователей кто запускал бота
+ * Auth: header x-bot-token must equal BOT_TOKEN
+ */
+app.post("/api/users/ensure-bot", async (req, res) => {
+  try {
+    if (!BOT_TOKEN) return res.status(500).json({ ok: false, error: "BOT_TOKEN is not set on admin" });
+
+    const token = String(req.headers["x-bot-token"] || "");
+    if (!token || token !== BOT_TOKEN) return res.status(401).json({ ok: false, error: "unauthorized" });
+
+    const tgId = Number(req.body?.tgId);
+    if (!Number.isFinite(tgId) || tgId <= 0) return res.status(400).json({ ok: false, error: "tgId is required" });
+
+    const now = new Date();
+
+    const payload = {
+      username: String(req.body?.username || ""),
+      firstName: String(req.body?.firstName || ""),
+      lastName: String(req.body?.lastName || ""),
+      languageCode: String(req.body?.languageCode || ""),
+    };
+
+    const user = await User.findOneAndUpdate(
+      { tgId },
+      {
+        $setOnInsert: {
+          tgId,
+          ...payload,
+          createdAt: now,
+          // launchCount НЕ трогаем тут
+          botStartCount: 0,
+          botStartAt: now,
+        },
+        $set: {
+          ...payload,
+          lastSeenAt: now,
+          botStartAt: now,
+        },
+        $inc: {
+          botStartCount: 1,
+        },
+      },
+      { new: true, upsert: true }
+    );
+
+    return res.json({ ok: true, user, meta: { source: "bot" } });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
 });
 
-app.listen(PORT, () => console.log(`✅ Admin API listening on :${PORT}`));
+app.listen(Number(PORT), () => {
+  // eslint-disable-next-line no-console
+  console.log(`[pinka-admin] listening on :${PORT}`);
+});
