@@ -13,30 +13,41 @@ export default function App() {
 
     tg.ready();
 
-    // Попытка true fullscreen (как BLUM / Tiny Verse)
+    // auto-fullscreen как у BLUM
     try {
-      if (tg.requestFullscreen) {
-        tg.requestFullscreen();
-      }
+      tg.requestFullscreen?.();
     } catch {}
 
-    // Fallback — максимум без шапки не гарантируем, но растягиваемся
+    // fallback
     try {
-      if (tg.expand) {
-        tg.expand();
-      }
+      tg.expand?.();
     } catch {}
   }, []);
 
   return (
     <div
       style={{
-        width: "100vw",
-        height: "100vh",
-        background: "#000", // или твой welcome
+        position: "fixed",
+        inset: 0,               // 🔑 ключ
+        width: "100%",
+        height: "100%",
+        margin: 0,
+        padding: 0,
+        background: "#000",
+        overflow: "hidden",
       }}
     >
-      {/* твой welcome / UI */}
+      <img
+        src="/welcome.png"
+        alt="welcome"
+        style={{
+          position: "absolute",
+          inset: 0,
+          width: "100%",
+          height: "100%",
+          objectFit: "cover",
+        }}
+      />
     </div>
   );
 }
