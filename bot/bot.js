@@ -1,10 +1,10 @@
 /**
- * Pinka Plus bot
+ * Pinka Plus bot (ESM)
  * /start — только текст, без кнопок
  */
 
-const { Telegraf } = require("telegraf");
-const fetch = require("node-fetch");
+import { Telegraf } from "telegraf";
+import fetch from "node-fetch";
 
 const { BOT_TOKEN, ADMIN_API_URL } = process.env;
 
@@ -32,13 +32,13 @@ async function ensureUserFromStart(ctx) {
       }),
     });
   } catch (err) {
-    console.error("ensure-bot error:", err);
+    console.error("[bot] ensure-bot error:", err);
   }
 }
 
 bot.start(async (ctx) => {
   await ensureUserFromStart(ctx);
-  return ctx.reply(
+  await ctx.reply(
     "Открой мини-приложение через профиль бота (кнопка Open) и нажми Sync account."
   );
 });
