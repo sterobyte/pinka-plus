@@ -1,12 +1,13 @@
 /**
  * Pinka Plus — admin/server.js
- * STEP: Cards -> "Добавить карту" (+ PNG upload)
+ * STEP: Cards -> add required "collection" field (manual)
  *
  * Manual fields:
  *  - cardNo (декор)
  *  - issuer (select)
  *  - type (select)
  *  - series (select)
+ *  - collectionName (required, text)
  *  - ownerTgId (default 71846656)
  *  - image PNG
  *
@@ -72,6 +73,7 @@ const CardSchema = new mongoose.Schema(
     issuer: { type: String, required: true },
     cardType: { type: String, required: true },
     series: { type: String, required: true },
+    collectionName: { type: String, required: true }, // ОБЯЗАТЕЛЬНО
     ownerTgId: { type: Number, required: true, index: true },
 
     // system
@@ -96,8 +98,7 @@ const TYPES = ["Personality"];
 const SERIES = ["Creme"];
 
 // --- KID generator ---
-// We keep it deterministic and collision-resistant: 32 hex chars (UUID v4 without dashes).
-// Example: 9f7c1a0b3d0e4f5a9b8c7d6e5f4a3b2c
+// 32 hex chars (UUID v4 without dashes).
 function genKID() {
   return crypto.randomUUID().replaceAll("-", "");
 }
@@ -253,6 +254,7 @@ app.get("/admin/cards", async (_req, res) => {
 <td>${esc(c.issuer)}</td>
 <td>${esc(c.cardType)}</td>
 <td>${esc(c.series)}</td>
+<td>${esc(c.collectionName)}</td>
 <td>${c.ownerTgId}</td>
 <td>${esc(c.utcDate)}</td>
 <td>${esc(c.utcTime)}</td>
@@ -270,12 +272,12 @@ app.get("/admin/cards", async (_req, res) => {
   <h1 style="margin:0">Карты</h1>
   <a class="btn" href="/admin/cards/new">Добавить карту</a>
 </div>
-<p class="small">Карты без владельца не существуют.</p>
+<p class="small">Карты без владельца не существуют. Коллекция обязательна (для тех.карт используем VOID).</p>
 
 <table>
 <thead>
 <tr>
-<th>KID</th><th>номер</th><th>эмитент</th><th>тип</th><th>серия</th><th>ownerTgId</th><th>date</th><th>time</th><th>png</th>
+<th>KID</th><th>номер</th><th>эмитент</th><th>тип</th><th>серия</th><th>коллекция</th><th>ownerTgId</th><th>date</th><th>time</th><th>png</th>
 </tr>
 </thead>
 <tbody>${rows}</tbody>
@@ -319,6 +321,11 @@ app.get("/admin/cards/new", (_req, res) => {
   </div>
 
   <div class="row">
+    <label>Коллекция (обязательно)</label>
+    <input name="collectionName" placeholder="World Cup 2018 Team Russia" value="VOID" required />
+  </div>
+
+  <div class="row">
     <label>Владелец (tgID)</label>
     <input name="ownerTgId" value="71846656" inputmode="numeric" />
   </div>
@@ -345,11 +352,13 @@ app.post("/admin/cards/new", upload.single("image"), async (req, res) => {
     const issuer = String(req.body?.issuer || "");
     const cardType = String(req.body?.cardType || "");
     const series = String(req.body?.series || "");
+    const collectionName = String(req.body?.collectionName || "").trim();
     const ownerTgId = Number(req.body?.ownerTgId);
 
     if (!ISSUERS.includes(issuer)) return res.status(400).send("bad issuer");
     if (!TYPES.includes(cardType)) return res.status(400).send("bad type");
     if (!SERIES.includes(series)) return res.status(400).send("bad series");
+    if (!collectionName) return res.status(400).send("collectionName is required");
     if (!Number.isFinite(ownerTgId) || ownerTgId <= 0) return res.status(400).send("bad ownerTgId");
     if (!req.file?.buffer) return res.status(400).send("png is required");
 
@@ -370,6 +379,7 @@ app.post("/admin/cards/new", upload.single("image"), async (req, res) => {
       issuer,
       cardType,
       series,
+      collectionName,
       ownerTgId,
       utcDate,
       utcTime,
