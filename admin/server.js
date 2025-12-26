@@ -538,12 +538,11 @@ const root = document.getElementById("root");
 META.forEach(meta => {
   const div = document.createElement("div");
   div.className = "block";
-  div.innerHTML = `
-    <h2>${meta.title}</h2>
-    <input placeholder="Название" />
-    <button>Создать</button>
-    <ul></ul>
-  `;
+  div.innerHTML =
+    "<h2>" + meta.title + "</h2>" +
+    "<input placeholder='Название' />" +
+    "<button>Создать</button>" +
+    "<ul></ul>";
   root.appendChild(div);
 
   const input = div.querySelector("input");
