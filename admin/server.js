@@ -499,60 +499,85 @@ app.listen(Number(PORT), () => {
 });
 
 /* =====================================================
-   META DICTIONARIES (ADMIN)
-   collections / series / card-types / emitters
-   - single field: name
+   ADMIN UI — META DICTIONARIES
+   /admin/meta
    ===================================================== */
 
-const MetaSchema = new mongoose.Schema(
-  {
-    name: { type: String, required: true, unique: true, trim: true },
-  },
-  { timestamps: true }
-);
+app.get("/admin/meta", (req, res) => {
+  res.send(`
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <title>Pinka Plus — Справочники</title>
+  <style>
+    body { font-family: Arial; background:#0f172a; color:#e5e7eb; padding:20px; }
+    h1 { margin-bottom: 10px; }
+    .block { background:#020617; padding:15px; margin-bottom:20px; border-radius:8px; }
+    input { padding:6px; margin-right:6px; }
+    button { padding:6px 10px; cursor:pointer; }
+    ul { margin-top:10px; }
+    li { opacity:0.9; }
+  </style>
+</head>
+<body>
 
-// safe model init (no overwrite on reload)
-const Collection =
-  mongoose.models.Collection || mongoose.model("Collection", MetaSchema);
+<h1>📚 Справочники</h1>
+<div id="root"></div>
 
-const SeriesMeta =
-  mongoose.models.SeriesMeta || mongoose.model("SeriesMeta", MetaSchema);
+<script>
+const META = [
+  { key: "collections", title: "Коллекции" },
+  { key: "series", title: "Серии" },
+  { key: "card-types", title: "Типы карт" },
+  { key: "emitters", title: "Эмитенты" },
+];
 
-const CardTypeMeta =
-  mongoose.models.CardTypeMeta || mongoose.model("CardTypeMeta", MetaSchema);
+const root = document.getElementById("root");
 
-const Emitter =
-  mongoose.models.Emitter || mongoose.model("Emitter", MetaSchema);
+META.forEach(meta => {
+  const div = document.createElement("div");
+  div.className = "block";
+  div.innerHTML = `
+    <h2>${meta.title}</h2>
+    <input placeholder="Название" />
+    <button>Создать</button>
+    <ul></ul>
+  `;
+  root.appendChild(div);
 
-function registerMetaRoutes(app, basePath, Model) {
-  // create
-  app.post(basePath, async (req, res) => {
-    try {
-      const { name } = req.body || {};
-      if (!name || !String(name).trim()) {
-        return res.status(400).json({ ok: false, error: "name is required" });
-      }
-      const doc = await Model.create({ name: String(name).trim() });
-      return res.json({ ok: true, item: doc });
-    } catch (e) {
-      if (e?.code === 11000) {
-        return res.status(409).json({ ok: false, error: "duplicate" });
-      }
-      console.error(e);
-      return res.status(500).json({ ok: false, error: "server error" });
-    }
-  });
+  const input = div.querySelector("input");
+  const btn = div.querySelector("button");
+  const list = div.querySelector("ul");
 
-  // list
-  app.get(basePath, async (_req, res) => {
-    const items = await Model.find({}).sort({ name: 1 }).lean();
-    return res.json({ ok: true, items });
-  });
-}
+  async function load() {
+    const r = await fetch("/api/" + meta.key);
+    const j = await r.json();
+    list.innerHTML = "";
+    (j.items || []).forEach(i => {
+      const li = document.createElement("li");
+      li.textContent = i.name;
+      list.appendChild(li);
+    });
+  }
 
-// mount meta APIs
-registerMetaRoutes(app, "/api/collections", Collection);
-registerMetaRoutes(app, "/api/series", SeriesMeta);
-registerMetaRoutes(app, "/api/card-types", CardTypeMeta);
-registerMetaRoutes(app, "/api/emitters", Emitter);
+  btn.onclick = async () => {
+    if (!input.value.trim()) return;
+    await fetch("/api/" + meta.key, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: input.value })
+    });
+    input.value = "";
+    load();
+  };
+
+  load();
+});
+</script>
+
+</body>
+</html>
+`);
+});
 
