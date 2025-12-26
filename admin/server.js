@@ -156,6 +156,7 @@ input,select{padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px
   <nav>
     <a href="/admin/users" class="${active === "users" ? "active" : ""}">Пользователи</a>
     <a href="/admin/cards" class="${active === "cards" ? "active" : ""}">Карты</a>
+    <a href="/admin/meta" class="${active === \"meta\" ? \"active\" : \"\"}">Справочники</a>
   </nav>
 </header>
 <main>${content}</main>
