@@ -156,7 +156,6 @@ input,select{padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px
   <nav>
     <a href="/admin/users" class="${active === "users" ? "active" : ""}">Пользователи</a>
     <a href="/admin/cards" class="${active === "cards" ? "active" : ""}">Карты</a>
-    <a href="/admin/meta" class="${active === 'meta' ? 'active' : ''}">Справочники</a>
   </nav>
 </header>
 <main>${content}</main>
@@ -495,6 +494,75 @@ app.post("/api/users/ensure-bot", async (req, res) => {
   }
 });
 
+
+// ===== Admin: Meta dictionaries =====
+app.get("/admin/meta", (req, res) => {
+  res.send(layout("Справочники", "meta", `
+<div class="page">
+  <h1>Справочники</h1>
+
+  <div class="grid">
+    <section class="card">
+      <h2>Коллекции</h2>
+      <input id="collections-input" placeholder="Название" />
+      <button onclick="metaCreate('collections')">Создать</button>
+      <ul id="collections-list"></ul>
+    </section>
+
+    <section class="card">
+      <h2>Серии</h2>
+      <input id="series-input" placeholder="Название" />
+      <button onclick="metaCreate('series')">Создать</button>
+      <ul id="series-list"></ul>
+    </section>
+
+    <section class="card">
+      <h2>Типы карт</h2>
+      <input id="card-types-input" placeholder="Название" />
+      <button onclick="metaCreate('card-types')">Создать</button>
+      <ul id="card-types-list"></ul>
+    </section>
+
+    <section class="card">
+      <h2>Эмитенты</h2>
+      <input id="emitters-input" placeholder="Название" />
+      <button onclick="metaCreate('emitters')">Создать</button>
+      <ul id="emitters-list"></ul>
+    </section>
+  </div>
+</div>
+
+<script>
+async function metaLoad(key) {
+  const r = await fetch('/api/' + key);
+  const j = await r.json();
+  const list = document.getElementById(key + '-list');
+  list.innerHTML = '';
+  (j.items || []).forEach(i => {
+    const li = document.createElement('li');
+    li.textContent = i.name;
+    list.appendChild(li);
+  });
+}
+
+async function metaCreate(key) {
+  const input = document.getElementById(key + '-input');
+  if (!input.value.trim()) return;
+  await fetch('/api/' + key, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: input.value })
+  });
+  input.value = '';
+  metaLoad(key);
+}
+
+['collections','series','card-types','emitters'].forEach(metaLoad);
+</script>
+`));
+});
+
+
 app.listen(Number(PORT), () => {
   console.log(`[pinka-admin] listening on :${PORT}`);
 });
@@ -504,76 +572,6 @@ app.listen(Number(PORT), () => {
    /admin/meta
    ===================================================== */
 
-app.get("/admin/meta", (req, res) => {
-  res.send(`
-<!DOCTYPE html>
-<html lang="ru">
-<head>
-  <meta charset="UTF-8" />
-  <title>Pinka Plus — Справочники</title>
-  <style>
-    body { font-family: Arial; background:#0f172a; color:#e5e7eb; padding:20px; }
-    h1 { margin-bottom: 10px; }
-    .block { background:#020617; padding:15px; margin-bottom:20px; border-radius:8px; }
-    input { padding:6px; margin-right:6px; }
-    button { padding:6px 10px; cursor:pointer; }
-    ul { margin-top:10px; }
-    li { opacity:0.9; }
-  </style>
-</head>
-<body>
-
-<h1>📚 Справочники</h1>
-<div id="root"></div>
-
-<script>
-const META = [
-  { key: "collections", title: "Коллекции" },
-  { key: "series", title: "Серии" },
-  { key: "card-types", title: "Типы карт" },
-  { key: "emitters", title: "Эмитенты" },
-];
-
-const root = document.getElementById("root");
-
-META.forEach(meta => {
-  const div = document.createElement("div");
-  div.className = "block";
-  div.innerHTML =
-    "<h2>" + meta.title + "</h2>" +
-    "<input placeholder='Название' />" +
-    "<button>Создать</button>" +
-    "<ul></ul>";
-  root.appendChild(div);
-
-  const input = div.querySelector("input");
-  const btn = div.querySelector("button");
-  const list = div.querySelector("ul");
-
-  async function load() {
-    const r = await fetch("/api/" + meta.key);
-    const j = await r.json();
-    list.innerHTML = "";
-    (j.items || []).forEach(i => {
-      const li = document.createElement("li");
-      li.textContent = i.name;
-      list.appendChild(li);
-    });
-  }
-
-  btn.onclick = async () => {
-    if (!input.value.trim()) return;
-    await fetch("/api/" + meta.key, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: input.value })
-    });
-    input.value = "";
-    load();
-  };
-
-  load();
-});
 </script>
 
 </body>
