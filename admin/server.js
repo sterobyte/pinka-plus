@@ -497,3 +497,62 @@ app.post("/api/users/ensure-bot", async (req, res) => {
 app.listen(Number(PORT), () => {
   console.log(`[pinka-admin] listening on :${PORT}`);
 });
+
+/* =====================================================
+   META DICTIONARIES (ADMIN)
+   collections / series / card-types / emitters
+   - single field: name
+   ===================================================== */
+
+const MetaSchema = new mongoose.Schema(
+  {
+    name: { type: String, required: true, unique: true, trim: true },
+  },
+  { timestamps: true }
+);
+
+// safe model init (no overwrite on reload)
+const Collection =
+  mongoose.models.Collection || mongoose.model("Collection", MetaSchema);
+
+const SeriesMeta =
+  mongoose.models.SeriesMeta || mongoose.model("SeriesMeta", MetaSchema);
+
+const CardTypeMeta =
+  mongoose.models.CardTypeMeta || mongoose.model("CardTypeMeta", MetaSchema);
+
+const Emitter =
+  mongoose.models.Emitter || mongoose.model("Emitter", MetaSchema);
+
+function registerMetaRoutes(app, basePath, Model) {
+  // create
+  app.post(basePath, async (req, res) => {
+    try {
+      const { name } = req.body || {};
+      if (!name || !String(name).trim()) {
+        return res.status(400).json({ ok: false, error: "name is required" });
+      }
+      const doc = await Model.create({ name: String(name).trim() });
+      return res.json({ ok: true, item: doc });
+    } catch (e) {
+      if (e?.code === 11000) {
+        return res.status(409).json({ ok: false, error: "duplicate" });
+      }
+      console.error(e);
+      return res.status(500).json({ ok: false, error: "server error" });
+    }
+  });
+
+  // list
+  app.get(basePath, async (_req, res) => {
+    const items = await Model.find({}).sort({ name: 1 }).lean();
+    return res.json({ ok: true, items });
+  });
+}
+
+// mount meta APIs
+registerMetaRoutes(app, "/api/collections", Collection);
+registerMetaRoutes(app, "/api/series", SeriesMeta);
+registerMetaRoutes(app, "/api/card-types", CardTypeMeta);
+registerMetaRoutes(app, "/api/emitters", Emitter);
+
