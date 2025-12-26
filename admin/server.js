@@ -495,73 +495,11 @@ app.post("/api/users/ensure-bot", async (req, res) => {
 });
 
 
+
 // ===== Admin: Meta dictionaries =====
-app.get("/admin/meta", (req, res) => {
-  res.send(layout("Справочники", "meta", `
-<div class="page">
-  <h1>Справочники</h1>
-
-  <div class="grid">
-    <section class="card">
-      <h2>Коллекции</h2>
-      <input id="collections-input" placeholder="Название" />
-      <button onclick="metaCreate('collections')">Создать</button>
-      <ul id="collections-list"></ul>
-    </section>
-
-    <section class="card">
-      <h2>Серии</h2>
-      <input id="series-input" placeholder="Название" />
-      <button onclick="metaCreate('series')">Создать</button>
-      <ul id="series-list"></ul>
-    </section>
-
-    <section class="card">
-      <h2>Типы карт</h2>
-      <input id="card-types-input" placeholder="Название" />
-      <button onclick="metaCreate('card-types')">Создать</button>
-      <ul id="card-types-list"></ul>
-    </section>
-
-    <section class="card">
-      <h2>Эмитенты</h2>
-      <input id="emitters-input" placeholder="Название" />
-      <button onclick="metaCreate('emitters')">Создать</button>
-      <ul id="emitters-list"></ul>
-    </section>
-  </div>
-</div>
-
-<script>
-async function metaLoad(key) {
-  const r = await fetch('/api/' + key);
-  const j = await r.json();
-  const list = document.getElementById(key + '-list');
-  list.innerHTML = '';
-  (j.items || []).forEach(i => {
-    const li = document.createElement('li');
-    li.textContent = i.name;
-    list.appendChild(li);
-  });
-}
-
-async function metaCreate(key) {
-  const input = document.getElementById(key + '-input');
-  if (!input.value.trim()) return;
-  await fetch('/api/' + key, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name: input.value })
-  });
-  input.value = '';
-  metaLoad(key);
-}
-
-['collections','series','card-types','emitters'].forEach(metaLoad);
-</script>
-`));
+app.get('/admin/meta', (req, res) => {
+  res.send(layout('Справочники', 'meta', `<div class='page'><h1>Справочники</h1><p>Коллекции, серии, типы карт и эмитенты.</p><div class='grid'><div class='card'><h2>Коллекции</h2><input id='c_i'/><button onclick="mc('collections')">Создать</button><ul id='c_l'></ul></div><div class='card'><h2>Серии</h2><input id='s_i'/><button onclick="mc('series')">Создать</button><ul id='s_l'></ul></div><div class='card'><h2>Типы карт</h2><input id='t_i'/><button onclick="mc('card-types')">Создать</button><ul id='t_l'></ul></div><div class='card'><h2>Эмитенты</h2><input id='e_i'/><button onclick="mc('emitters')">Создать</button><ul id='e_l'></ul></div></div><script>async function ml(k,l){const r=await fetch('/api/'+k);const j=await r.json();l.innerHTML='';(j.items||[]).forEach(i=>{const li=document.createElement('li');li.textContent=i.name;l.appendChild(li);});}async function mc(k){const i=document.getElementById(k[0]+'_i');if(!i.value.trim())return;await fetch('/api/'+k,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:i.value})});i.value='';ml(k,document.getElementById(k[0]+'_l'));}ml('collections',document.getElementById('c_l'));ml('series',document.getElementById('s_l'));ml('card-types',document.getElementById('t_l'));ml('emitters',document.getElementById('e_l'));</script></div>`));
 });
-
 
 app.listen(Number(PORT), () => {
   console.log(`[pinka-admin] listening on :${PORT}`);
