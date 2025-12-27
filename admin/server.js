@@ -156,7 +156,6 @@ input,select{padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px
   <nav>
     <a href="/admin/users" class="${active === "users" ? "active" : ""}">Пользователи</a>
     <a href="/admin/cards" class="${active === "cards" ? "active" : ""}">Карты</a>
-      <a href="/admin/meta">Справочники</a>
   </nav>
 </header>
 <main>${content}</main>
@@ -495,129 +494,6 @@ app.post("/api/users/ensure-bot", async (req, res) => {
   }
 });
 
-
-// ===== Admin: Meta dictionaries =====
-app.get("/admin/meta", (req, res) => {
-  res.send(layout("Справочники", "meta", `
-<div class="page">
-  <h1>Справочники</h1>
-
-  <div class="grid">
-    <section class="card">
-      <h2>Коллекции</h2>
-      <input id="collections-input" placeholder="Название" />
-      <button onclick="metaCreate('collections')">Создать</button>
-      <ul id="collections-list"></ul>
-    </section>
-
-    <section class="card">
-      <h2>Серии</h2>
-      <input id="series-input" placeholder="Название" />
-      <button onclick="metaCreate('series')">Создать</button>
-      <ul id="series-list"></ul>
-    </section>
-
-    <section class="card">
-      <h2>Типы карт</h2>
-      <input id="card-types-input" placeholder="Название" />
-      <button onclick="metaCreate('card-types')">Создать</button>
-      <ul id="card-types-list"></ul>
-    </section>
-
-    <section class="card">
-      <h2>Эмитенты</h2>
-      <input id="emitters-input" placeholder="Название" />
-      <button onclick="metaCreate('emitters')">Создать</button>
-      <ul id="emitters-list"></ul>
-    </section>
-  </div>
-</div>
-
-<script>
-async function metaLoad(key) {
-  const r = await fetch('/api/' + key);
-  const j = await r.json();
-  const list = document.getElementById(key + '-list');
-  list.innerHTML = '';
-  (j.items || []).forEach(i => {
-    const li = document.createElement('li');
-    li.textContent = i.name;
-    list.appendChild(li);
-  });
-}
-
-async function metaCreate(key) {
-  const input = document.getElementById(key + '-input');
-  if (!input.value.trim()) return;
-  await fetch('/api/' + key, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name: input.value })
-  });
-  input.value = '';
-  metaLoad(key);
-}
-
-['collections','series','card-types','emitters'].forEach(metaLoad);
-</script>
-`));
-});
-
-
-
-// ===== Admin: Meta (NO JS) =====
-app.get('/admin/meta', async (req, res) => {
-  res.send(layout('Справочники', 'meta', `
-    <h1>Справочники</h1>
-
-    <h2>Коллекции</h2>
-    <form method="POST" action="/admin/meta/collections">
-      <input name="name" placeholder="Название" required />
-      <button>Создать</button>
-    </form>
-
-    <h2>Серии</h2>
-    <form method="POST" action="/admin/meta/series">
-      <input name="name" placeholder="Название" required />
-      <button>Создать</button>
-    </form>
-
-    <h2>Типы карт</h2>
-    <form method="POST" action="/admin/meta/card-types">
-      <input name="name" placeholder="Название" required />
-      <button>Создать</button>
-    </form>
-
-    <h2>Эмитенты</h2>
-    <form method="POST" action="/admin/meta/emitters">
-      <input name="name" placeholder="Название" required />
-      <button>Создать</button>
-    </form>
-  `));
-});
-
-app.post('/admin/meta/:kind', async (req, res) => {
-  const { kind } = req.params;
-  const { name } = req.body;
-  if (name) {
-    await db.collection(kind).insertOne({ name });
-  }
-  res.redirect('/admin/meta');
-});
-
 app.listen(Number(PORT), () => {
   console.log(`[pinka-admin] listening on :${PORT}`);
 });
-
-/* =====================================================
-   ADMIN UI — META DICTIONARIES
-   /admin/meta
-   ===================================================== */
-
-</script>
-
-</body>
-</html>
-`);
-});
-
